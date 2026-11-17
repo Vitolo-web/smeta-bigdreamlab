@@ -71,7 +71,15 @@
     <p class="print-only signature">Подпись ____________________</p>
     <div class="print-actions">
       <button id="save-pdf" class="save-button" type="button">Сохранить PDF</button>
+      <button id="copy-whatsapp" class="secondary-button" type="button">Скопировать для WhatsApp</button>
+      <button id="new-estimate" class="secondary-button" type="button">Новая смета</button>
       <p class="hint">В окне печати выберите «Сохранить как PDF».</p>
+    </div>
+    <p id="copy-status" class="hint app-message" role="status"></p>
+    <p id="storage-status" class="hint app-message" role="status"></p>
+    <div id="manual-copy" class="manual-copy" hidden>
+      <label for="share-text">Скопируйте текст вручную</label>
+      <textarea id="share-text" rows="8" readonly></textarea>
     </div>
   </main>
 
