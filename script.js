@@ -117,3 +117,26 @@ document.querySelector("#estimate-date").value = [
 ].join("-");
 
 addItem(false);
+
+function preparePrint() {
+  recalculate();
+  const number = document.querySelector("#estimate-number").value.trim() || "—";
+  const date = document.querySelector("#estimate-date").value;
+  const formattedDate = date ? date.split("-").reverse().join(".") : "—";
+  document.querySelector("#print-title").textContent = `Смета № ${number} от ${formattedDate}`;
+
+  // Текстовые копии позволяют печатать длинные значения целиком, без обрезки полей.
+  document.querySelectorAll(".print-value").forEach((element) => element.remove());
+  document.querySelectorAll(".details-grid input, #items input, #items select, #comment").forEach((field) => {
+    const value = document.createElement("span");
+    value.className = "print-value";
+    value.textContent = field.type === "date" ? formattedDate : field.value;
+    field.insertAdjacentElement("afterend", value);
+  });
+}
+
+window.addEventListener("beforeprint", preparePrint);
+document.querySelector("#save-pdf").addEventListener("click", () => {
+  preparePrint();
+  window.print();
+});

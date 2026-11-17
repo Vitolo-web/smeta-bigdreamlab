@@ -10,6 +10,7 @@
 </head>
 <body>
   <main class="page">
+    <h1 id="print-title" class="print-only"></h1>
     <header class="page-header">
       <p class="eyebrow">ПРОСТОЙ РАСЧЁТ</p>
       <h1>Смета за 5 минут</h1>
@@ -63,6 +64,15 @@
       <h2 id="total-title">Итого к оплате</h2>
       <output id="total" aria-live="polite" aria-atomic="true">0 ₸</output>
     </section>
+    <section class="card comment-card" aria-labelledby="comment-title">
+      <h2 id="comment-title"><label for="comment">Комментарий</label></h2>
+      <textarea id="comment" rows="3" placeholder="Сроки выполнения, условия оплаты"></textarea>
+    </section>
+    <p class="print-only signature">Подпись ____________________</p>
+    <div class="print-actions">
+      <button id="save-pdf" class="save-button" type="button">Сохранить PDF</button>
+      <p class="hint">В окне печати выберите «Сохранить как PDF».</p>
+    </div>
   </main>
 
   <template id="item-template">
