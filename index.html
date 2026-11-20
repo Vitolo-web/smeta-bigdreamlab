@@ -48,15 +48,17 @@
       <button id="add-item" class="add-button" type="button">+ Добавить позицию</button>
       <p id="row-status" class="visually-hidden" role="status"></p>
       <div class="calculation-settings">
-        <label>Скидка, %<input id="discount-rate" type="text" inputmode="decimal" value="0"></label>
+        <label>Скидка, %<input id="discount-rate" type="text" inputmode="decimal" value="0" aria-describedby="discount-hint"></label>
         <label>НДС, %<input id="vat-rate" type="text" inputmode="decimal" value="0"></label>
         <label>Валюта<select id="currency"><option value="₸">₸</option><option value="₽">₽</option><option value="$">$</option><option value="€">€</option></select></label>
       </div>
+      <p id="discount-hint" class="hint">Выберите тип под наименованием: компьютеры и ноутбуки считаются вместе. До 10 шт. — 0%, от 10 — 10%, от 30 — 20% от всей суммы. Для смет без техники скидка задаётся вручную.</p>
     </section>
 
     <dl class="card summary" aria-label="Расчёт стоимости">
-      <div class="summary-row"><dt>Сумма</dt><dd><output id="subtotal">0 ₸</output></dd></div>
-      <div class="summary-row" id="discount-row" hidden><dt>Скидка</dt><dd><output id="discount-amount">0 ₸</output></dd></div>
+      <div class="summary-row"><dt>Сумма до скидки</dt><dd><output id="subtotal">0,00 ₸</output></dd></div>
+      <div class="summary-row"><dt>Компьютеры и ноутбуки, шт.</dt><dd><output id="equipment-count">0</output></dd></div>
+      <div class="summary-row" id="discount-row"><dt>Скидка (<output id="discount-percent">0</output>%)</dt><dd><output id="discount-amount">0,00 ₸</output></dd></div>
       <div class="summary-row" id="discounted-row" hidden><dt>Сумма со скидкой</dt><dd><output id="discounted-amount">0 ₸</output></dd></div>
       <div class="summary-row" id="vat-row" hidden><dt>НДС</dt><dd><output id="vat-amount">0 ₸</output></dd></div>
     </dl>
@@ -86,7 +88,7 @@
 
   <template id="item-template">
     <tr class="item-row">
-      <td data-label="Наименование"><input class="item-name" type="text" aria-label="Наименование" placeholder="Товар или услуга"></td>
+      <td data-label="Наименование"><input class="item-name" type="text" aria-label="Наименование" placeholder="Товар или услуга"><select class="item-type" aria-label="Тип оборудования"><option value="other">Прочее</option><option value="computer">Компьютер</option><option value="laptop">Ноутбук</option></select></td>
       <td data-label="Количество"><input class="item-quantity" type="text" inputmode="decimal" aria-label="Количество" placeholder="0"></td>
       <td data-label="Единица"><select class="item-unit" aria-label="Единица"><option value="шт">шт</option><option value="час">час</option><option value="услуга">услуга</option></select></td>
       <td data-label="Цена, ₸"><input class="item-price" type="text" inputmode="decimal" aria-label="Цена, ₸" placeholder="0"></td>

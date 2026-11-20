@@ -39,6 +39,7 @@ td { padding: 12px 6px; border-top: 1px solid #e9edf3; }
 td:first-child, th:first-child { padding-left: 0; }
 td:last-child, th:last-child { padding-right: 0; }
 td input, td select { font-size: 14px; }
+.item-type { margin-top: 8px; }
 .amount-heading, .line-total { text-align: right; }
 .line-total { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .remove-cell { text-align: right; }

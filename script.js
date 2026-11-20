@@ -12,9 +12,11 @@ const draftKey = "smeta-draft-v1";
 const draftFieldIds = ["sender", "recipient", "estimate-number", "estimate-date", "discount-rate", "vat-rate", "currency", "comment"];
 let draftReady = false;
 let copyTimer;
+let automaticDiscountActive = false;
+let manualDiscountRate = "0";
 const moneyFormatter = new Intl.NumberFormat("ru-RU", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 function readNumber(value) {
@@ -30,10 +32,22 @@ function formatMoney(value) {
 }
 
 function roundAmount(value) {
-  return Number.isFinite(value) ? Math.round(value) : 0;
+  if (!Number.isFinite(value)) return 0;
+  const [coefficient, exponent = "0"] = String(value).split("e");
+  const shifted = Number(`${coefficient}e${Number(exponent) + 2}`);
+  if (!Number.isFinite(shifted)) return 0;
+  return Math.round(shifted) / 100;
 }
 
 function amountInWords(amount) {
+  if (Number.isFinite(amount) && !Number.isInteger(amount)) {
+    const rounded = roundAmount(amount);
+    const whole = Math.trunc(Math.abs(rounded));
+    if (Math.abs(rounded) > 999999999 || rounded === 0) return "";
+    const tiyn = Math.round((Math.abs(rounded) - whole) * 100);
+    const text = whole ? amountInWords(whole) : "Ноль тенге";
+    return `${rounded < 0 ? "Минус " + text.toLowerCase() : text} ${String(tiyn).padStart(2, "0")} тиын`;
+  }
   if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 999999999) return "";
   const ones = ["", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
   const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
@@ -76,21 +90,38 @@ function recalculate() {
   document.querySelector("#price-heading").textContent = `Цена, ${currency.value}`;
   updateRowLabels();
   let total = 0;
+  let equipmentCount = 0;
+  let hasEquipment = false;
   for (const row of items.rows) {
     const quantity = readNumber(row.querySelector(".item-quantity").value);
-    const price = readNumber(row.querySelector(".item-price").value);
+    const price = roundAmount(readNumber(row.querySelector(".item-price").value));
+    const type = row.querySelector(".item-type").value;
+    if (type === "computer" || type === "laptop") {
+      hasEquipment = true;
+      if (row.querySelector(".item-unit").value === "шт") {
+        const nextCount = equipmentCount + Math.max(0, quantity);
+        if (Number.isFinite(nextCount)) equipmentCount = nextCount;
+      }
+    }
     const product = quantity * price;
-    // Считаем в целых единицах валюты: итог совпадает с видимыми суммами строк.
+    // Округляем каждую строку до двух знаков, чтобы итог совпадал с видимыми суммами.
     const amount = roundAmount(product);
     row.querySelector(".item-total").textContent = formatMoney(amount);
-    const nextTotal = total + amount;
+    const nextTotal = roundAmount(total + amount);
     if (Number.isFinite(nextTotal)) total = nextTotal;
   }
+  if (!automaticDiscountActive) manualDiscountRate = discountRate.value;
+  automaticDiscountActive = hasEquipment;
+  discountRate.readOnly = hasEquipment;
+  discountRate.value = hasEquipment ? String(equipmentCount >= 30 ? 20 : equipmentCount >= 10 ? 10 : 0) : manualDiscountRate;
+  document.querySelector("#equipment-count").textContent = equipmentCount.toLocaleString("ru-RU");
+  document.querySelector("#discount-percent").textContent = String(readNumber(discountRate.value));
   const discount = roundAmount(total * (readNumber(discountRate.value) / 100));
   const discounted = roundAmount(total - discount);
   const vat = roundAmount(discounted * (readNumber(vatRate.value) / 100));
   document.querySelector("#subtotal").textContent = formatMoney(total);
   showSummaryAmount("#discount-amount", "#discount-row", discount);
+  document.querySelector("#discount-row").hidden = false;
   showSummaryAmount("#discounted-amount", "#discounted-row", discounted);
   showSummaryAmount("#vat-amount", "#vat-row", vat);
   const payable = roundAmount(discounted + vat);
@@ -106,7 +137,7 @@ function updateRowLabels() {
     row.querySelector(".item-price").closest("td").dataset.label = `Цена, ${currency.value}`;
     row.querySelector(".remove-button").setAttribute("aria-label", `Удалить позицию ${index + 1}`);
     row.querySelectorAll("input, select").forEach((field) => {
-      const label = field.closest("td").dataset.label;
+      const label = field.matches(".item-type") ? "Тип оборудования" : field.closest("td").dataset.label;
       field.setAttribute("aria-label", `${label}, позиция ${index + 1}`);
     });
   });
@@ -126,6 +157,7 @@ function addItem(focus = true) {
 
 document.querySelector("#add-item").addEventListener("click", () => addItem());
 items.addEventListener("input", recalculate);
+items.addEventListener("change", recalculate);
 discountRate.addEventListener("input", recalculate);
 vatRate.addEventListener("input", recalculate);
 currency.addEventListener("change", recalculate);
@@ -174,7 +206,7 @@ function preparePrint() {
   document.querySelectorAll(".details-grid input, #items input, #items select, #comment").forEach((field) => {
     const value = document.createElement("span");
     value.className = "print-value";
-    value.textContent = field.type === "date" ? formattedDate : field.value;
+    value.textContent = field.type === "date" ? formattedDate : field.matches(".item-price") ? formatMoney(readNumber(field.value)) : field.matches(".item-type") ? field.selectedOptions[0].textContent : field.value;
     field.insertAdjacentElement("afterend", value);
   });
 }
@@ -188,11 +220,13 @@ document.querySelector("#save-pdf").addEventListener("click", () => {
 function saveDraft() {
   if (!draftReady) return;
   const fields = Object.fromEntries(draftFieldIds.map((id) => [id, document.getElementById(id).value]));
+  if (automaticDiscountActive) fields["discount-rate"] = manualDiscountRate;
   const positions = Array.from(items.rows, (row) => ({
     name: row.querySelector(".item-name").value,
     quantity: row.querySelector(".item-quantity").value,
     unit: row.querySelector(".item-unit").value,
     price: row.querySelector(".item-price").value,
+    type: row.querySelector(".item-type").value,
   }));
   try {
     localStorage.setItem(draftKey, JSON.stringify({ version: 1, fields, positions }));
@@ -213,7 +247,8 @@ function restoreDraft() {
       Array.isArray(draft.positions) && draft.positions.length > 0 &&
       draft.positions.every((position) => position &&
         ["name", "quantity", "unit", "price"].every((key) => typeof position[key] === "string") &&
-        ["шт", "час", "услуга"].includes(position.unit));
+        ["шт", "час", "услуга"].includes(position.unit) &&
+        (position.type === undefined || ["other", "computer", "laptop"].includes(position.type)));
     if (!valid) throw new Error("Invalid draft");
     draftFieldIds.forEach((id) => { document.getElementById(id).value = draft.fields[id]; });
     items.replaceChildren();
@@ -223,6 +258,7 @@ function restoreDraft() {
       row.querySelector(".item-quantity").value = position.quantity;
       row.querySelector(".item-unit").value = position.unit;
       row.querySelector(".item-price").value = position.price;
+      row.querySelector(".item-type").value = position.type || "other";
     });
     recalculate();
   } catch {
@@ -245,6 +281,8 @@ document.querySelector("#new-estimate").addEventListener("click", () => {
   const now = new Date();
   document.querySelector("#estimate-date").value = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
   discountRate.value = "0";
+  manualDiscountRate = "0";
+  automaticDiscountActive = false;
   vatRate.value = "0";
   currency.value = "₸";
   items.replaceChildren();
@@ -274,9 +312,9 @@ function buildShareText() {
     const price = formatMoney(readNumber(row.querySelector(".item-price").value));
     lines.push(`• ${name} — ${quantity} ${unit} × ${price} = ${row.querySelector(".item-total").textContent}`);
   }
-  lines.push("", `Сумма: ${document.querySelector("#subtotal").textContent}`);
+  lines.push("", `Компьютеры и ноутбуки: ${document.querySelector("#equipment-count").textContent} шт.`, `Сумма до скидки: ${document.querySelector("#subtotal").textContent}`);
   for (const [rowId, outputId, label] of [
-    ["discount-row", "discount-amount", "Скидка"],
+    ["discount-row", "discount-amount", `Скидка (${readNumber(discountRate.value)}%)`],
     ["discounted-row", "discounted-amount", "Сумма со скидкой"],
     ["vat-row", "vat-amount", "НДС"],
   ]) {
