@@ -6,6 +6,8 @@
   <meta name="description" content="Составьте смету с автоматическим расчётом стоимости позиций.">
   <title>Смета за 5 минут</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="currency.js" defer></script>
+  <script src="excel.js" defer></script>
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -50,9 +52,43 @@
       <div class="calculation-settings">
         <label>Скидка, %<input id="discount-rate" type="text" inputmode="decimal" value="0" aria-describedby="discount-hint"></label>
         <label>НДС, %<input id="vat-rate" type="text" inputmode="decimal" value="0"></label>
-        <label>Валюта<select id="currency"><option value="₸">₸</option><option value="₽">₽</option><option value="$">$</option><option value="€">€</option></select></label>
+        <label>Валюта расчёта<select id="currency"><option value="₸">KZT — тенге (₸)</option><option value="$">USD — доллар ($)</option><option value="€">EUR — евро (€)</option><option value="₽">RUB — рубль (₽)</option></select></label>
       </div>
-      <p id="discount-hint" class="hint">Выберите тип «Компьютер» или «Ноутбук» и единицу «шт»: их количество считается вместе. В тенге до 10 шт. цена за единицу — 500 000,00 ₸, от 10 шт. — 450 000,00 ₸. Дополнительно от всей суммы сметы по этим ценам вычитается скидка: до 10 шт. — 0%, 10–29 шт. — 10%, от 30 шт. — 20%. Скидки не суммируются. Цена и скидка меняются автоматически. Для смет без техники и других валют цены и скидка задаются вручную.</p>
+      <p id="discount-hint" class="hint">Исходные цены вводятся и сохраняются в KZT. Выберите тип «Компьютер» или «Ноутбук» и единицу «шт»: их количество считается вместе. До 10 шт. цена за единицу — 500 000,00 ₸, от 10 шт. — 450 000,00 ₸. Скидка от всей суммы: до 10 шт. — 0%, 10–29 шт. — 10%, от 30 шт. — 20%. Скидки не суммируются. Сначала выполняется расчёт в тенге, затем конвертация.</p>
+    </section>
+
+    <section class="card exchange-card" aria-labelledby="exchange-title">
+      <h2 id="exchange-title">Валютный курс</h2>
+      <div class="details-grid exchange-controls">
+        <label>Режим курса<select id="rate-mode"><option value="publication">Дата публикации сметы</option><option value="order">Дата оформления заказа</option></select></label>
+        <label>Дата публикации<input id="publication-date" type="date"></label>
+        <label>Дата заказа<input id="order-date" type="date"></label>
+      </div>
+      <dl class="exchange-details">
+        <div><dt>Дата создания сметы</dt><dd id="created-date"></dd></div>
+        <div><dt>Валюта расчёта</dt><dd id="rate-currency"></dd></div>
+        <div><dt>Режим и дата расчёта</dt><dd id="rate-target"></dd></div>
+        <div><dt>Дата применённого курса</dt><dd id="rate-date">—</dd></div>
+        <div><dt>Курс, KZT за 1 единицу</dt><dd id="rate-value">—</dd></div>
+        <div><dt>Источник</dt><dd id="rate-source">—</dd></div>
+        <div><dt>Статус курса</dt><dd id="rate-state"></dd></div>
+      </dl>
+      <p id="rate-note"></p>
+      <div class="print-actions exchange-controls">
+        <button id="refresh-rate" class="secondary-button" type="button">Повторить запрос НБРК</button>
+        <button id="fix-rate" class="secondary-button" type="button">Опубликовать и зафиксировать курс</button>
+      </div>
+      <p id="rate-status" class="hint app-message" role="status"></p>
+      <details class="exchange-controls">
+        <summary>Загрузить XML НБРК или ввести курс вручную</summary>
+        <p class="hint">Если браузер блокирует запрос, откройте <a id="official-rate-link" href="https://nationalbank.kz/rss/rates_all.xml" target="_blank" rel="noopener noreferrer">XML на сайте НБРК</a>, сохраните файл и загрузите его здесь. Только запрос даты курса уходит в НБРК, содержимое сметы остаётся в браузере.</p>
+        <label>Официальный XML НБРК<input id="rate-file" type="file" accept=".xml,text/xml,application/xml"></label>
+        <div class="details-grid">
+          <label>Курс вручную: KZT за 1 единицу<input id="manual-rate" type="text" inputmode="decimal" placeholder="Введите проверенный курс"></label>
+          <label>Дата действия ручного курса<input id="manual-rate-date" type="date"></label>
+        </div>
+        <button id="apply-manual-rate" class="secondary-button" type="button">Применить ручной курс</button>
+      </details>
     </section>
 
     <dl class="card summary" aria-label="Расчёт стоимости">
@@ -67,6 +103,7 @@
       <h2 id="total-title">Итого к оплате</h2>
       <output id="total" aria-live="polite" aria-atomic="true">0 ₸</output>
     </section>
+    <p class="kzt-equivalent">Эквивалент итога в KZT: <output id="total-kzt">0,00 ₸</output></p>
     <p id="amount-words" class="amount-words" aria-live="polite" aria-atomic="true" hidden></p>
     <section class="card comment-card" aria-labelledby="comment-title">
       <h2 id="comment-title"><label for="comment">Комментарий</label></h2>
@@ -75,6 +112,7 @@
     <p class="print-only signature">Подпись ____________________</p>
     <div class="print-actions">
       <button id="save-pdf" class="save-button" type="button">Сохранить PDF</button>
+      <button id="save-excel" class="secondary-button" type="button">Сохранить Excel</button>
       <button id="copy-whatsapp" class="secondary-button" type="button">Скопировать для WhatsApp</button>
       <button id="new-estimate" class="secondary-button" type="button">Новая смета</button>
       <p class="hint">В окне печати выберите «Сохранить как PDF».</p>
@@ -92,7 +130,7 @@
       <td data-label="Наименование"><input class="item-name" type="text" aria-label="Наименование" placeholder="Товар или услуга"><select class="item-type" aria-label="Тип оборудования"><option value="other">Прочее</option><option value="computer">Компьютер</option><option value="laptop">Ноутбук</option></select></td>
       <td data-label="Количество"><input class="item-quantity" type="text" inputmode="decimal" aria-label="Количество" placeholder="0"></td>
       <td data-label="Единица"><select class="item-unit" aria-label="Единица"><option value="шт">шт</option><option value="час">час</option><option value="услуга">услуга</option></select></td>
-      <td data-label="Цена, ₸"><input class="item-price" type="text" inputmode="decimal" aria-label="Цена, ₸" placeholder="0"></td>
+      <td data-label="Исходная цена, KZT"><input class="item-price" type="text" inputmode="decimal" aria-label="Исходная цена, KZT" placeholder="0"><output class="item-converted-price" hidden></output></td>
       <td data-label="Сумма" class="line-total"><output class="item-total" aria-label="Сумма строки">0 ₸</output></td>
       <td class="remove-cell"><button type="button" class="remove-button" aria-label="Удалить позицию">✕</button></td>
     </tr>

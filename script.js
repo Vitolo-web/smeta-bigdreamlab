@@ -26,9 +26,16 @@ function readNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function formatMoney(value) {
+function formatKzt(value) {
   const safeValue = Number.isFinite(value) ? value : 0;
-  return moneyFormatter.format(safeValue === 0 ? 0 : safeValue).replace(/[\u00a0\u202f]/g, " ") + " " + currency.value;
+  return moneyFormatter.format(safeValue === 0 ? 0 : safeValue).replace(/[\u00a0\u202f]/g, " ") + " ₸";
+}
+
+function formatMoney(value) {
+  const rate = SmetaFX.rate();
+  if (!rate) return "—";
+  const converted = (Number.isFinite(value) ? value : 0) / rate;
+  return moneyFormatter.format(Number.isFinite(converted) && converted !== 0 ? converted : 0).replace(/[\u00a0\u202f]/g, " ") + " " + currency.value;
 }
 
 function roundAmount(value) {
@@ -87,7 +94,7 @@ function showSummaryAmount(outputId, rowId, amount) {
 }
 
 function recalculate() {
-  document.querySelector("#price-heading").textContent = `Цена, ${currency.value}`;
+  document.querySelector("#price-heading").textContent = currency.value === "₸" ? "Цена, KZT" : `Цена: KZT / ${SmetaFX.selection().code}`;
   updateRowLabels();
   let total = 0;
   let equipmentCount = 0;
@@ -101,7 +108,7 @@ function recalculate() {
       if (Number.isFinite(nextCount)) equipmentCount = nextCount;
     }
   }
-  const automaticPricing = hasEquipment && currency.value === "₸";
+  const automaticPricing = hasEquipment;
   const equipmentPrice = equipmentCount >= 10 ? 450000 : 500000;
   for (const row of items.rows) {
     const type = row.querySelector(".item-type").value;
@@ -117,6 +124,9 @@ function recalculate() {
     }
     const quantity = readNumber(row.querySelector(".item-quantity").value);
     const price = roundAmount(readNumber(priceField.value));
+    const convertedPrice = row.querySelector(".item-converted-price");
+    convertedPrice.hidden = currency.value === "₸";
+    convertedPrice.textContent = formatMoney(price);
     const product = quantity * price;
     // Округляем каждую строку до двух знаков, чтобы итог совпадал с видимыми суммами.
     const amount = roundAmount(product);
@@ -142,15 +152,22 @@ function recalculate() {
   showSummaryAmount("#vat-amount", "#vat-row", vat);
   const payable = roundAmount(discounted + vat);
   totalOutput.textContent = formatMoney(payable);
+  document.querySelector("#total-kzt").textContent = formatKzt(payable);
+  totalOutput.dataset.kzt = String(payable);
+  totalOutput.dataset.subtotalKzt = String(total);
+  totalOutput.dataset.discountKzt = String(discount);
+  totalOutput.dataset.discountedKzt = String(discounted);
+  totalOutput.dataset.vatKzt = String(vat);
   const words = currency.value === "₸" ? amountInWords(payable) : "";
   amountWords.hidden = !words;
   amountWords.textContent = words ? `Сумма прописью: ${words}` : "";
   if (draftReady) saveDraft();
+  SmetaFX.update();
 }
 
 function updateRowLabels() {
   Array.from(items.rows).forEach((row, index) => {
-    row.querySelector(".item-price").closest("td").dataset.label = `Цена, ${currency.value}`;
+    row.querySelector(".item-price").closest("td").dataset.label = "Исходная цена, KZT";
     row.querySelector(".remove-button").setAttribute("aria-label", `Удалить позицию ${index + 1}`);
     row.querySelectorAll("input, select").forEach((field) => {
       const label = field.matches(".item-type") ? "Тип оборудования" : field.closest("td").dataset.label;
@@ -176,7 +193,6 @@ items.addEventListener("input", recalculate);
 items.addEventListener("change", recalculate);
 discountRate.addEventListener("input", recalculate);
 vatRate.addEventListener("input", recalculate);
-currency.addEventListener("change", recalculate);
 items.addEventListener("click", (event) => {
   const button = event.target.closest(".remove-button");
   if (!button) return;
@@ -208,6 +224,7 @@ document.querySelector("#estimate-date").value = [
   String(today.getDate()).padStart(2, "0"),
 ].join("-");
 
+SmetaFX.restore(null);
 addItem(false);
 
 function preparePrint() {
@@ -225,10 +242,13 @@ function preparePrint() {
     value.textContent = field.type === "date" ? formattedDate : field.matches(".item-price") ? formatMoney(readNumber(field.value)) : field.matches(".item-type") ? field.selectedOptions[0].textContent : field.value;
     field.insertAdjacentElement("afterend", value);
   });
+  document.querySelector("#price-heading").textContent = `Цена, ${SmetaFX.selection().code}`;
 }
 
 window.addEventListener("beforeprint", preparePrint);
-document.querySelector("#save-pdf").addEventListener("click", () => {
+window.addEventListener("afterprint", recalculate);
+document.querySelector("#save-pdf").addEventListener("click", async () => {
+  if (!await SmetaFX.fix()) return;
   preparePrint();
   window.print();
 });
@@ -246,7 +266,7 @@ function saveDraft() {
     type: row.querySelector(".item-type").value,
   }));
   try {
-    localStorage.setItem(draftKey, JSON.stringify({ version: 1, fields, positions }));
+    localStorage.setItem(draftKey, JSON.stringify({ version: 1, fields, positions, fx: SmetaFX.getState() }));
     document.querySelector("#storage-status").textContent = "";
   } catch {
     document.querySelector("#storage-status").textContent = "Не удалось сохранить черновик в этом браузере. Не закрывайте страницу, пока не сохраните смету в PDF или не скопируете текст.";
@@ -269,6 +289,7 @@ function restoreDraft() {
         (position.type === undefined || ["other", "computer", "laptop"].includes(position.type)));
     if (!valid) throw new Error("Invalid draft");
     draftFieldIds.forEach((id) => { document.getElementById(id).value = draft.fields[id]; });
+    SmetaFX.restore(draft.fx);
     items.replaceChildren();
     draft.positions.forEach((position) => {
       const row = addItem(false);
@@ -304,6 +325,7 @@ document.querySelector("#new-estimate").addEventListener("click", () => {
   automaticDiscountActive = false;
   vatRate.value = "0";
   currency.value = "₸";
+  SmetaFX.reset();
   items.replaceChildren();
   addItem();
   clearTimeout(copyTimer);
@@ -319,6 +341,7 @@ function buildShareText() {
   const number = document.querySelector("#estimate-number").value.trim() || "—";
   const date = document.querySelector("#estimate-date").value;
   const lines = [`Смета № ${number} от ${date ? date.split("-").reverse().join(".") : "—"}`];
+  lines.push(...SmetaFX.describe());
   for (const [id, label] of [["sender", "От кого"], ["recipient", "Для кого"]]) {
     const value = document.getElementById(id).value.trim();
     if (value) lines.push(`${label}: ${value}`);
@@ -342,12 +365,14 @@ function buildShareText() {
   }
   lines.push(`Итого к оплате: ${totalOutput.textContent}`);
   if (!amountWords.hidden) lines.push(amountWords.textContent);
+  lines.push(`Эквивалент итога в KZT: ${document.querySelector("#total-kzt").textContent}`);
   const comment = document.querySelector("#comment").value.trim();
   if (comment) lines.push("", `Комментарий: ${comment}`);
   return lines.join("\n");
 }
 
 document.querySelector("#copy-whatsapp").addEventListener("click", async () => {
+  if (!await SmetaFX.fix()) return;
   const text = buildShareText();
   const status = document.querySelector("#copy-status");
   clearTimeout(copyTimer);
@@ -375,3 +400,23 @@ document.addEventListener("change", (event) => {
 
 restoreDraft();
 draftReady = true;
+SmetaFX.init(recalculate);
+
+document.querySelector("#save-excel").addEventListener("click", async () => {
+  if (!await SmetaFX.fix()) return;
+  recalculate();
+  const rows = Array.from(items.rows, (row) => ({
+    name: row.querySelector(".item-name").value,
+    type: row.querySelector(".item-type").selectedOptions[0].textContent,
+    quantity: readNumber(row.querySelector(".item-quantity").value),
+    unit: row.querySelector(".item-unit").value,
+    price: roundAmount(readNumber(row.querySelector(".item-price").value)),
+  }));
+  const blob = SmetaExcel.create({ rows, rate: SmetaFX.current(), metadata: SmetaFX.describe(), number: document.querySelector("#estimate-number").value, date: document.querySelector("#estimate-date").value, sender: document.querySelector("#sender").value, recipient: document.querySelector("#recipient").value, comment: document.querySelector("#comment").value, discount: readNumber(discountRate.value), vat: readNumber(vatRate.value) });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = "Смета.xlsx";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});

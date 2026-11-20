@@ -70,6 +70,24 @@ textarea { display: block; width: 100%; min-height: 100px; margin-top: 16px; pad
 .secondary-button:hover { background: #f1f5ff; }
 .app-message:not(:empty), .manual-copy { margin-top: 16px; }
 .manual-copy[hidden] { display: none; }
+.item-converted-price { display: block; margin-top: 8px; overflow-wrap: anywhere; font-size: 14px; }
+.item-converted-price[hidden] { display: none; }
+.exchange-details { margin: 24px 0; }
+.exchange-details > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 12px; }
+.exchange-details dt { color: var(--muted); }
+.exchange-details dd { margin: 0; overflow-wrap: anywhere; }
+.exchange-card details { margin-top: 20px; }
+.exchange-card summary { cursor: pointer; min-height: 46px; padding-block: 12px; }
+.exchange-card details > label, .exchange-card details > button { margin-top: 16px; }
+.kzt-equivalent { margin: 12px 0; line-height: 1.5; }
+@media print {
+  .exchange-controls, .item-converted-price, #rate-status { display: none !important; }
+  .exchange-details { margin: 2mm 0; font-size: 9pt; }
+  .exchange-details > div { margin-top: 1mm; }
+  .exchange-details dt { color: black; }
+  .exchange-card, .kzt-equivalent { break-inside: avoid; }
+  #rate-note { font-size: 9pt; }
+}
 
 @media screen and (min-width: 641px) and (max-width: 900px) {
   .page { padding-inline: 16px; }
