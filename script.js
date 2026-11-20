@@ -93,16 +93,30 @@ function recalculate() {
   let equipmentCount = 0;
   let hasEquipment = false;
   for (const row of items.rows) {
-    const quantity = readNumber(row.querySelector(".item-quantity").value);
-    const price = roundAmount(readNumber(row.querySelector(".item-price").value));
     const type = row.querySelector(".item-type").value;
-    if (type === "computer" || type === "laptop") {
+    if ((type === "computer" || type === "laptop") && row.querySelector(".item-unit").value === "шт") {
       hasEquipment = true;
-      if (row.querySelector(".item-unit").value === "шт") {
-        const nextCount = equipmentCount + Math.max(0, quantity);
-        if (Number.isFinite(nextCount)) equipmentCount = nextCount;
-      }
+      const quantity = readNumber(row.querySelector(".item-quantity").value);
+      const nextCount = equipmentCount + Math.max(0, quantity);
+      if (Number.isFinite(nextCount)) equipmentCount = nextCount;
     }
+  }
+  const automaticPricing = hasEquipment && currency.value === "₸";
+  const equipmentPrice = equipmentCount >= 10 ? 450000 : 500000;
+  for (const row of items.rows) {
+    const type = row.querySelector(".item-type").value;
+    const priceField = row.querySelector(".item-price");
+    const useEquipmentPrice = automaticPricing && (type === "computer" || type === "laptop") && row.querySelector(".item-unit").value === "шт";
+    priceField.readOnly = useEquipmentPrice;
+    if (useEquipmentPrice) {
+      if (priceField.dataset.manualPrice === undefined) priceField.dataset.manualPrice = priceField.value;
+      priceField.value = moneyFormatter.format(equipmentPrice).replace(/[\u00a0\u202f]/g, " ");
+    } else if (priceField.dataset.manualPrice !== undefined) {
+      priceField.value = priceField.dataset.manualPrice;
+      delete priceField.dataset.manualPrice;
+    }
+    const quantity = readNumber(row.querySelector(".item-quantity").value);
+    const price = roundAmount(readNumber(priceField.value));
     const product = quantity * price;
     // Округляем каждую строку до двух знаков, чтобы итог совпадал с видимыми суммами.
     const amount = roundAmount(product);
@@ -111,10 +125,12 @@ function recalculate() {
     if (Number.isFinite(nextTotal)) total = nextTotal;
   }
   if (!automaticDiscountActive) manualDiscountRate = discountRate.value;
-  automaticDiscountActive = hasEquipment;
-  discountRate.readOnly = hasEquipment;
-  discountRate.value = hasEquipment ? String(equipmentCount >= 30 ? 20 : equipmentCount >= 10 ? 10 : 0) : manualDiscountRate;
+  automaticDiscountActive = automaticPricing;
+  discountRate.readOnly = automaticPricing;
+  discountRate.value = automaticPricing ? String(equipmentCount >= 30 ? 20 : equipmentCount >= 10 ? 10 : 0) : manualDiscountRate;
   document.querySelector("#equipment-count").textContent = equipmentCount.toLocaleString("ru-RU");
+  document.querySelector("#equipment-pricing-row").hidden = !automaticPricing;
+  document.querySelector("#equipment-pricing").textContent = automaticPricing ? `${equipmentCount >= 10 ? "Оптовая" : "Розничная"}: ${formatMoney(equipmentPrice)}/шт.` : "";
   document.querySelector("#discount-percent").textContent = String(readNumber(discountRate.value));
   const discount = roundAmount(total * (readNumber(discountRate.value) / 100));
   const discounted = roundAmount(total - discount);
@@ -226,6 +242,7 @@ function saveDraft() {
     quantity: row.querySelector(".item-quantity").value,
     unit: row.querySelector(".item-unit").value,
     price: row.querySelector(".item-price").value,
+    manualPrice: row.querySelector(".item-price").dataset.manualPrice,
     type: row.querySelector(".item-type").value,
   }));
   try {
@@ -248,6 +265,7 @@ function restoreDraft() {
       draft.positions.every((position) => position &&
         ["name", "quantity", "unit", "price"].every((key) => typeof position[key] === "string") &&
         ["шт", "час", "услуга"].includes(position.unit) &&
+        (position.manualPrice === undefined || typeof position.manualPrice === "string") &&
         (position.type === undefined || ["other", "computer", "laptop"].includes(position.type)));
     if (!valid) throw new Error("Invalid draft");
     draftFieldIds.forEach((id) => { document.getElementById(id).value = draft.fields[id]; });
@@ -258,6 +276,7 @@ function restoreDraft() {
       row.querySelector(".item-quantity").value = position.quantity;
       row.querySelector(".item-unit").value = position.unit;
       row.querySelector(".item-price").value = position.price;
+      if (position.manualPrice !== undefined) row.querySelector(".item-price").dataset.manualPrice = position.manualPrice;
       row.querySelector(".item-type").value = position.type || "other";
     });
     recalculate();
@@ -313,6 +332,7 @@ function buildShareText() {
     lines.push(`• ${name} — ${quantity} ${unit} × ${price} = ${row.querySelector(".item-total").textContent}`);
   }
   lines.push("", `Компьютеры и ноутбуки: ${document.querySelector("#equipment-count").textContent} шт.`, `Сумма до скидки: ${document.querySelector("#subtotal").textContent}`);
+  if (!document.querySelector("#equipment-pricing-row").hidden) lines.push(`Цена техники: ${document.querySelector("#equipment-pricing").textContent}`);
   for (const [rowId, outputId, label] of [
     ["discount-row", "discount-amount", `Скидка (${readNumber(discountRate.value)}%)`],
     ["discounted-row", "discounted-amount", "Сумма со скидкой"],

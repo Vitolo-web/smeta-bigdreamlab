@@ -52,12 +52,13 @@
         <label>НДС, %<input id="vat-rate" type="text" inputmode="decimal" value="0"></label>
         <label>Валюта<select id="currency"><option value="₸">₸</option><option value="₽">₽</option><option value="$">$</option><option value="€">€</option></select></label>
       </div>
-      <p id="discount-hint" class="hint">Выберите тип под наименованием: компьютеры и ноутбуки считаются вместе. До 10 шт. — 0%, от 10 — 10%, от 30 — 20% от всей суммы. Для смет без техники скидка задаётся вручную.</p>
+      <p id="discount-hint" class="hint">Выберите тип «Компьютер» или «Ноутбук» и единицу «шт»: их количество считается вместе. В тенге до 10 шт. цена за единицу — 500 000,00 ₸, от 10 шт. — 450 000,00 ₸. Дополнительно от всей суммы сметы по этим ценам вычитается скидка: до 10 шт. — 0%, 10–29 шт. — 10%, от 30 шт. — 20%. Скидки не суммируются. Цена и скидка меняются автоматически. Для смет без техники и других валют цены и скидка задаются вручную.</p>
     </section>
 
     <dl class="card summary" aria-label="Расчёт стоимости">
       <div class="summary-row"><dt>Сумма до скидки</dt><dd><output id="subtotal">0,00 ₸</output></dd></div>
       <div class="summary-row"><dt>Компьютеры и ноутбуки, шт.</dt><dd><output id="equipment-count">0</output></dd></div>
+      <div class="summary-row" id="equipment-pricing-row" hidden><dt>Цена техники</dt><dd><output id="equipment-pricing"></output></dd></div>
       <div class="summary-row" id="discount-row"><dt>Скидка (<output id="discount-percent">0</output>%)</dt><dd><output id="discount-amount">0,00 ₸</output></dd></div>
       <div class="summary-row" id="discounted-row" hidden><dt>Сумма со скидкой</dt><dd><output id="discounted-amount">0 ₸</output></dd></div>
       <div class="summary-row" id="vat-row" hidden><dt>НДС</dt><dd><output id="vat-amount">0 ₸</output></dd></div>
