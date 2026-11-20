@@ -9,6 +9,8 @@ const discountRate = document.querySelector("#discount-rate");
 const vatRate = document.querySelector("#vat-rate");
 const currency = document.querySelector("#currency");
 const draftKey = "smeta-draft-v1";
+const officePromotionKey = "smeta-office-promotion-v1";
+const officeVersions = ["2024", "2021", "2019"];
 const draftFieldIds = ["sender", "recipient", "estimate-number", "estimate-date", "discount-rate", "vat-rate", "currency", "comment"];
 let draftReady = false;
 let copyTimer;
@@ -93,6 +95,40 @@ function showSummaryAmount(outputId, rowId, amount) {
   document.querySelector(rowId).hidden = amount === 0;
 }
 
+function getOfficeGift(equipmentCount = readNumber(document.querySelector("#equipment-count").textContent)) {
+  if (!document.querySelector("#office-promotion-enabled").checked || equipmentCount < 20) return "";
+  const selectedVersion = document.querySelector("#office-promotion-version").value;
+  const version = officeVersions.includes(selectedVersion) ? selectedVersion : "2024";
+  return `Бесплатный лицензионный Microsoft Office ${version} с установкой в подарок при покупке от 20 компьютеров и ноутбуков.`;
+}
+
+function initOfficePromotion() {
+  const enabled = document.querySelector("#office-promotion-enabled");
+  const version = document.querySelector("#office-promotion-version");
+  enabled.checked = true;
+  version.value = "2024";
+  try {
+    const saved = JSON.parse(localStorage.getItem(officePromotionKey) || "null");
+    if (saved && typeof saved.enabled === "boolean" && officeVersions.includes(saved.version)) {
+      enabled.checked = saved.enabled;
+      version.value = saved.version;
+    }
+  } catch {
+    document.querySelector("#office-settings-status").textContent = "Не удалось восстановить настройки акции. Проверьте их перед отправкой сметы.";
+  }
+  const save = () => {
+    try {
+      localStorage.setItem(officePromotionKey, JSON.stringify({ enabled: enabled.checked, version: version.value }));
+      document.querySelector("#office-settings-status").textContent = "Настройки акции сохранены в этом браузере.";
+    } catch {
+      document.querySelector("#office-settings-status").textContent = "Не удалось сохранить настройки акции. Они действуют до закрытия страницы.";
+    }
+    recalculate();
+  };
+  enabled.addEventListener("change", save);
+  version.addEventListener("change", save);
+}
+
 function recalculate() {
   document.querySelector("#price-heading").textContent = currency.value === "₸" ? "Цена, KZT" : `Цена: KZT / ${SmetaFX.selection().code}`;
   updateRowLabels();
@@ -139,6 +175,10 @@ function recalculate() {
   discountRate.readOnly = automaticPricing;
   discountRate.value = automaticPricing ? String(equipmentCount >= 30 ? 20 : equipmentCount >= 10 ? 10 : 0) : manualDiscountRate;
   document.querySelector("#equipment-count").textContent = equipmentCount.toLocaleString("ru-RU");
+  const gift = getOfficeGift(equipmentCount);
+  document.querySelector("#office-gift").hidden = !gift;
+  document.querySelector("#office-gift-description").textContent = gift;
+  document.querySelector("#office-promotion-version").disabled = !document.querySelector("#office-promotion-enabled").checked;
   document.querySelector("#equipment-pricing-row").hidden = !automaticPricing;
   document.querySelector("#equipment-pricing").textContent = automaticPricing ? `${equipmentCount >= 10 ? "Оптовая" : "Розничная"}: ${formatMoney(equipmentPrice)}/шт.` : "";
   document.querySelector("#discount-percent").textContent = String(readNumber(discountRate.value));
@@ -225,6 +265,7 @@ document.querySelector("#estimate-date").value = [
 ].join("-");
 
 SmetaFX.restore(null);
+initOfficePromotion();
 addItem(false);
 
 function preparePrint() {
@@ -366,6 +407,8 @@ function buildShareText() {
   lines.push(`Итого к оплате: ${totalOutput.textContent}`);
   if (!amountWords.hidden) lines.push(amountWords.textContent);
   lines.push(`Эквивалент итога в KZT: ${document.querySelector("#total-kzt").textContent}`);
+  const gift = getOfficeGift();
+  if (gift) lines.push("", `Подарок: ${gift}`);
   const comment = document.querySelector("#comment").value.trim();
   if (comment) lines.push("", `Комментарий: ${comment}`);
   return lines.join("\n");
@@ -412,7 +455,7 @@ document.querySelector("#save-excel").addEventListener("click", async () => {
     unit: row.querySelector(".item-unit").value,
     price: roundAmount(readNumber(row.querySelector(".item-price").value)),
   }));
-  const blob = SmetaExcel.create({ rows, rate: SmetaFX.current(), metadata: SmetaFX.describe(), number: document.querySelector("#estimate-number").value, date: document.querySelector("#estimate-date").value, sender: document.querySelector("#sender").value, recipient: document.querySelector("#recipient").value, comment: document.querySelector("#comment").value, discount: readNumber(discountRate.value), vat: readNumber(vatRate.value) });
+  const blob = SmetaExcel.create({ rows, gift: getOfficeGift(), rate: SmetaFX.current(), metadata: SmetaFX.describe(), number: document.querySelector("#estimate-number").value, date: document.querySelector("#estimate-date").value, sender: document.querySelector("#sender").value, recipient: document.querySelector("#recipient").value, comment: document.querySelector("#comment").value, discount: readNumber(discountRate.value), vat: readNumber(vatRate.value) });
   const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
   link.href = url;

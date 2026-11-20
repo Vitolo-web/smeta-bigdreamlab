@@ -27,7 +27,7 @@ function fixture(date = "20.11.2026", nominal = 1) {
   return `<rates><date>${date}</date>${["USD", "EUR", "RUB"].map((code) => `<item><title>${code}</title><description>${(code === "USD" ? 500 : code === "EUR" ? 550 : 5) * nominal}</description><quant>${nominal}</quant></item>`).join("")}</rates>`;
 }
 
-async function app(saved, fetchImpl) {
+async function app(saved, fetchImpl, officeSettings) {
   const nodes = new Map();
   function field(value = "") {
     return { value, textContent: "", hidden: false, disabled: false, readOnly: false, dataset: {}, listeners: {}, files: [], selectedOptions: [{ textContent: "Компьютер" }],
@@ -55,13 +55,16 @@ async function app(saved, fetchImpl) {
   get("#item-template").content = { cloneNode() { const r = row(); return { querySelector: () => r }; } };
   get("#currency").value = "₸"; get("#discount-rate").value = "0"; get("#vat-rate").value = "0"; get("#rate-mode").value = "publication";
   const document = { querySelector: get, getElementById: (id) => get("#" + id), addEventListener() {}, createElement: () => field(), querySelectorAll: (selector) => selector === ".print-value" ? [] : [...items.rows.flatMap((r) => r.querySelectorAll()), get("#comment")] };
-  let storage = saved || null, calls = 0;
-  const context = vm.createContext({ document, DOMParser, Blob, TextEncoder, URL, AbortController, location: { protocol: "http:", hostname: "127.0.0.1" }, setTimeout, clearTimeout, window: { addEventListener() {}, confirm: () => true, print() {} }, navigator: {}, localStorage: { getItem: () => storage, setItem: (key, value) => { storage = value; } }, fetch: async (...args) => { calls++; return fetchImpl ? fetchImpl(...args) : { ok: true, text: async () => fixture() }; } });
+  const storage = new Map();
+  if (saved) storage.set("smeta-draft-v1", saved);
+  if (officeSettings) storage.set("smeta-office-promotion-v1", officeSettings);
+  let calls = 0;
+  const context = vm.createContext({ document, DOMParser, Blob, TextEncoder, URL, AbortController, location: { protocol: "http:", hostname: "127.0.0.1" }, setTimeout, clearTimeout, window: { addEventListener() {}, confirm: () => true, print() {} }, navigator: {}, localStorage: { getItem: (key) => storage.get(key) || null, setItem: (key, value) => { storage.set(key, value); } }, fetch: async (...args) => { calls++; return fetchImpl ? fetchImpl(...args) : { ok: true, text: async () => fixture() }; } });
   for (const filename of ["currency.js", "excel.js", "script.js"]) vm.runInContext(await fs.readFile(path.join(__dirname, filename), "utf8"), context);
   const run = (code) => vm.runInContext(code, context);
   // Дату фиксируем в тестах, чтобы результаты не зависели от дня запуска.
   get("#publication-date").value = "2026-11-20"; get("#order-date").value = "2026-11-20";
-  return { get, items, run, calls: () => calls, saved: () => storage, async change(id, value) { get("#" + id).value = value; await get("#" + id).emit("change"); await run("SmetaFX.load()"); }, setRows(data) { items.rows = data.map((entry) => { const r = row(); for (const [key, value] of Object.entries(entry)) r.querySelector(`.item-${key}`).value = String(value); return r; }); run("recalculate()"); } };
+  return { get, items, run, calls: () => calls, saved: () => storage.get("smeta-draft-v1"), settings: () => storage.get("smeta-office-promotion-v1"), async change(id, value) { get("#" + id).value = value; await get("#" + id).emit("change"); await run("SmetaFX.load()"); }, setRows(data) { items.rows = data.map((entry) => { const r = row(); for (const [key, value] of Object.entries(entry)) r.querySelector(`.item-${key}`).value = String(value); return r; }); run("recalculate()"); } };
 }
 
 async function main() {
@@ -132,6 +135,43 @@ async function main() {
   equal(sheet.includes('<f>ROUND(E17/$B$7,2)</f>'), true);
   equal(sheet.includes('<c r="H24" s="2"><f>ROUND(G24/$B$7,2)</f><v>8100</v></c>'), true);
   equal(sheet.includes('<c r="A17" t="inlineStr"'), true);
+  const promo = await app();
+  equal(promo.get("#office-promotion-enabled").checked, true);
+  equal(promo.get("#office-promotion-version").value, "2024");
+  promo.setRows([{ type: "computer", quantity: 19 }]);
+  equal(promo.get("#office-gift").hidden, true);
+  equal(promo.run("buildShareText()").includes("Microsoft Office"), false);
+  promo.setRows([{ type: "computer", quantity: 12 }, { type: "laptop", quantity: 8 }]);
+  equal(promo.get("#office-gift").hidden, false);
+  equal(promo.get("#office-gift-description").textContent.includes("лицензионный Microsoft Office 2024 с установкой"), true);
+  equal(promo.get("#total").textContent, "8 100 000,00 ₸");
+  equal(promo.run("buildShareText()").includes("Подарок: Бесплатный лицензионный Microsoft Office 2024"), true);
+  promo.run("preparePrint()"); equal(promo.get("#office-gift").hidden, false);
+  const giftBlob = promo.run(`SmetaExcel.create({rows:[{name:'ПК',type:'Компьютер',quantity:20,unit:'шт',price:450000}],gift:getOfficeGift(),rate:SmetaFX.current(),metadata:SmetaFX.describe(),number:'001',date:'2026-11-20',sender:'',recipient:'',comment:'',discount:10,vat:0})`);
+  const giftXml = Buffer.from(await giftBlob.arrayBuffer()).toString("utf8");
+  equal(giftXml.includes("лицензионный Microsoft Office 2024 с установкой"), true);
+  equal(giftXml.includes('<v>8100000</v>'), true);
+  await promo.change("office-promotion-version", "2021");
+  equal(promo.run("getOfficeGift()").includes("Office 2021"), true);
+  const restoredPromo = await app(promo.saved(), undefined, promo.settings());
+  equal(restoredPromo.get("#office-promotion-version").value, "2021");
+  equal(restoredPromo.get("#office-gift").hidden, false);
+  promo.get("#office-promotion-enabled").checked = false;
+  await promo.get("#office-promotion-enabled").emit("change");
+  equal(promo.get("#office-gift").hidden, true);
+  equal(promo.get("#office-promotion-version").disabled, true);
+  equal(promo.run("buildShareText()").includes("Microsoft Office"), false);
+  equal(promo.get("#total").textContent, "8 100 000,00 ₸");
+  const disabledPromo = await app(promo.saved(), undefined, promo.settings());
+  equal(disabledPromo.get("#office-promotion-enabled").checked, false);
+  await disabledPromo.get("#new-estimate").emit("click");
+  equal(disabledPromo.get("#office-promotion-enabled").checked, false);
+  equal(disabledPromo.get("#office-promotion-version").value, "2021");
+  equal(disabledPromo.get("#office-gift").hidden, true);
+  restoredPromo.setRows([{ type: "computer", quantity: 19 }, { type: "other", quantity: 100 }, { type: "laptop", quantity: 100, unit: "час" }]);
+  equal(restoredPromo.get("#office-gift").hidden, true);
+  restoredPromo.setRows([{ type: "computer", quantity: "abc" }, { type: "laptop", quantity: "" }]);
+  equal(restoredPromo.get("#office-gift").hidden, true);
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {

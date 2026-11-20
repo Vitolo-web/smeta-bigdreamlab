@@ -70,6 +70,13 @@ textarea { display: block; width: 100%; min-height: 100px; margin-top: 16px; pad
 .secondary-button:hover { background: #f1f5ff; }
 .app-message:not(:empty), .manual-copy { margin-top: 16px; }
 .manual-copy[hidden] { display: none; }
+.promotion-settings summary { min-height: 46px; padding-block: 12px; cursor: pointer; font-weight: 600; }
+.checkbox-label { flex-direction: row; align-items: center; min-height: 46px; gap: 12px; }
+.checkbox-label input { width: 44px; height: 44px; flex: 0 0 44px; margin: 0; }
+.promotion-settings .hint { margin-top: 16px; }
+.office-gift { margin-top: 20px; }
+.office-gift p { margin: 12px 0 0; line-height: 1.5; }
+.office-gift[hidden] { display: none; }
 .item-converted-price { display: block; margin-top: 8px; overflow-wrap: anywhere; font-size: 14px; }
 .item-converted-price[hidden] { display: none; }
 .exchange-details { margin: 24px 0; }
@@ -81,7 +88,8 @@ textarea { display: block; width: 100%; min-height: 100px; margin-top: 16px; pad
 .exchange-card details > label, .exchange-card details > button { margin-top: 16px; }
 .kzt-equivalent { margin: 12px 0; line-height: 1.5; }
 @media print {
-  .exchange-controls, .item-converted-price, #rate-status { display: none !important; }
+  .exchange-controls, .item-converted-price, #rate-status, .promotion-settings { display: none !important; }
+  .office-gift { break-inside: avoid; }
   .exchange-details { margin: 2mm 0; font-size: 9pt; }
   .exchange-details > div { margin-top: 1mm; }
   .exchange-details dt { color: black; }

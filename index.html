@@ -57,6 +57,18 @@
       <p id="discount-hint" class="hint">Исходные цены вводятся и сохраняются в KZT. Выберите тип «Компьютер» или «Ноутбук» и единицу «шт»: их количество считается вместе. До 10 шт. цена за единицу — 500 000,00 ₸, от 10 шт. — 450 000,00 ₸. Скидка от всей суммы: до 10 шт. — 0%, 10–29 шт. — 10%, от 30 шт. — 20%. Скидки не суммируются. Сначала выполняется расчёт в тенге, затем конвертация.</p>
     </section>
 
+    <section class="card promotion-settings" aria-labelledby="promotion-settings-title">
+      <details>
+        <summary id="promotion-settings-title">Настройки акции (для администратора)</summary>
+        <div class="details-grid">
+          <label class="checkbox-label"><input id="office-promotion-enabled" type="checkbox" checked>Microsoft Office в подарок</label>
+          <label>Версия Microsoft Office<select id="office-promotion-version"><option value="2024">Microsoft Office 2024</option><option value="2021">Microsoft Office 2021</option><option value="2019">Microsoft Office 2019</option></select></label>
+        </div>
+        <p class="hint">При включённой акции и покупке от 20 компьютеров и ноутбуков суммарно — бесплатный лицензионный Microsoft Office выбранной версии с установкой. Настройка сохраняется в этом браузере и применяется к новым сметам.</p>
+        <p id="office-settings-status" class="hint app-message" role="status"></p>
+      </details>
+    </section>
+
     <section class="card exchange-card" aria-labelledby="exchange-title">
       <h2 id="exchange-title">Валютный курс</h2>
       <div class="details-grid exchange-controls">
@@ -105,6 +117,10 @@
     </section>
     <p class="kzt-equivalent">Эквивалент итога в KZT: <output id="total-kzt">0,00 ₸</output></p>
     <p id="amount-words" class="amount-words" aria-live="polite" aria-atomic="true" hidden></p>
+    <section id="office-gift" class="card office-gift" aria-labelledby="office-gift-title" aria-live="polite" hidden>
+      <h2 id="office-gift-title">Microsoft Office в подарок</h2>
+      <p id="office-gift-description"></p>
+    </section>
     <section class="card comment-card" aria-labelledby="comment-title">
       <h2 id="comment-title"><label for="comment">Комментарий</label></h2>
       <textarea id="comment" rows="3" placeholder="Сроки выполнения, условия оплаты"></textarea>

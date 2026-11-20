@@ -69,6 +69,10 @@ const SmetaExcel = (() => {
     summary(start + 5, "НДС", vat, `ROUND(G${start + 3}*B${start + 4}/100,2)`);
     summary(start + 6, "Итого к оплате", payable, `ROUND(G${start + 3}+G${start + 5},2)`);
     add(start + 7, text(`A${start + 7}`, "Эквивалент итога в KZT", 1) + num(`G${start + 7}`, payable, `G${start + 6}`));
+    if (data.gift) {
+      pair(start + 9, "Подарок по акции", data.gift);
+      pair(start + 10, "Стоимость лицензии и установки", `Бесплатно — 0,00 ${data.rate.code}`);
+    }
     const sheet = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="16" topLeftCell="A17" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="35" customWidth="1"/><col min="2" max="2" width="45" customWidth="1"/><col min="3" max="4" width="14" customWidth="1"/><col min="5" max="8" width="22" customWidth="1"/></cols><sheetData>${rows.join("")}</sheetData><pageSetup paperSize="9" orientation="landscape"/></worksheet>`;
     return zip([
       ["[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
